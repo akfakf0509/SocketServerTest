@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <thread>
 #include <stdio.h>
 #include <WinSock2.h>
 
@@ -7,6 +8,13 @@
 
 #define PORT 4578
 #define PACKET_SIZE 1024
+
+void RecvFun();
+void SendFun();
+
+SOCKET hClient;
+
+bool connected = false;
 
 int main() {
 	WSADATA wsaData;
@@ -26,21 +34,40 @@ int main() {
 
 	SOCKADDR_IN tClntAddr = {};
 	int iClntSize = sizeof(tClntAddr);
-	SOCKET hClient = accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize);
+	hClient = accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize);
 
 	printf("Connected!\n");
-	char cBuffer[PACKET_SIZE] = {};
-	std::string cMsg = "정해성 바보";
-	while (true) {
-		recv(hClient, cBuffer, PACKET_SIZE, 0);
-		printf("Recv Msg : %s\n", cBuffer);
+	connected = true;
 
-		std::getline(std::cin, cMsg);
-		send(hClient, cMsg.c_str(), cMsg.size(), 0);
-	}
+	std::thread thread1(RecvFun);
+	std::thread thread2(SendFun);
+
+	thread1.join();
+	thread2.join();
+
+	printf("Disconnected\n");
 
 	closesocket(hClient);
 	closesocket(hListen);
 
 	WSACleanup();
+}
+
+void RecvFun() {
+	while (true) {
+		char cBuffer[PACKET_SIZE] = {};
+		if (recv(hClient, cBuffer, PACKET_SIZE, 0) <= 0)
+			break;
+
+		printf("Recv Msg : %s\n", cBuffer);
+	}
+	connected = false;
+}
+
+void SendFun() {
+	while (connected) {
+		std::string cMsg;
+		std::getline(std::cin, cMsg);
+		send(hClient, cMsg.c_str(), cMsg.size(), 0);
+	}
 }

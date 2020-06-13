@@ -1,6 +1,7 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <iostream>
 #include <string>
+#include <thread>
 #include <stdio.h>
 #include <WinSock2.h>
 
@@ -10,11 +11,17 @@
 #define PACKET_SIZE 1024
 #define SERVER_IP "39.124.9.196"
 
+void RecvFun();
+void SendFun();
+
+SOCKET hSocket;
+
+bool connected = false;
+
 int main() {
 	WSADATA wsaData;
 	WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-	SOCKET hSocket;
 	hSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	SOCKADDR_IN tAddr = {};
@@ -27,20 +34,37 @@ int main() {
 	connect(hSocket, (SOCKADDR*)&tAddr, sizeof(tAddr));
 
 	printf("Connected!\n");
+	connected = true;
 
-	char cBuffer[PACKET_SIZE] = {};
-	std::string cMsg = "Client Send";
-	while (true) {
-		std::getline(std::cin, cMsg);
-		send(hSocket, cMsg.c_str(), cMsg.size(), 0);
+	std::thread thread1(RecvFun);
+	std::thread thread2(SendFun);
 
-		recv(hSocket, cBuffer, PACKET_SIZE, 0);
-		printf("Recv Msg : %s\n", cBuffer);
-	}
+	thread1.join();
+	thread2.join();
 
 	closesocket(hSocket);
 
 	WSACleanup();
 
 	system("pause");
+}
+
+void RecvFun() {
+	while (true) {
+		char cBuffer[PACKET_SIZE] = {};
+
+		if (recv(hSocket, cBuffer, PACKET_SIZE, 0) <= 0)
+			break;
+
+		printf("Recv Msg : %s\n", cBuffer);
+	}
+	connected = false;
+}
+
+void SendFun() {
+	while (connected) {
+		std::string cMsg;
+		std::getline(std::cin, cMsg);
+		send(hSocket, cMsg.c_str(), cMsg.size(), 0);
+	}
 }
