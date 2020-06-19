@@ -9,7 +9,7 @@
 
 #define PORT 4578
 #define PACKET_SIZE 1024
-#define SERVER_IP "39.124.9.196"
+#define SERVER_IP "58.228.116.60"
 
 void RecvFun();
 void SendFun();

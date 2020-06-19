@@ -1,7 +1,10 @@
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
+#include <ctime>
 #include <string>
+#include <vector>
 #include <thread>
-#include <stdio.h>
 #include <WinSock2.h>
 
 #pragma comment(lib, "ws2_32")
@@ -9,10 +12,12 @@
 #define PORT 4578
 #define PACKET_SIZE 1024
 
+void printTime();
+void acceptFun();
 void RecvFun();
 void SendFun();
 
-SOCKET hClient;
+std::vector<SOCKET> hClient;
 
 bool connected = false;
 
@@ -28,16 +33,18 @@ int main() {
 	tListenAddr.sin_port = htons(PORT);
 	tListenAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	printf("Waiting for client..\n");
+	printTime(); std::cout << "Successfully opended" << std::endl;
 	bind(hListen, (SOCKADDR*)&tListenAddr, sizeof(tListenAddr));
 	listen(hListen, SOMAXCONN);
 
 	SOCKADDR_IN tClntAddr = {};
 	int iClntSize = sizeof(tClntAddr);
-	hClient = accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize);
+	while (true) {
+		hClient.push_back(accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize));
 
-	printf("Connected!\n");
-	connected = true;
+		printTime(); std::cout << "IP : " << inet_ntoa(tClntAddr.sin_addr) << " Connected" << std::endl;
+		connected = true;
+	}
 
 	std::thread thread1(RecvFun);
 	std::thread thread2(SendFun);
@@ -47,16 +54,27 @@ int main() {
 
 	printf("Disconnected\n");
 
-	closesocket(hClient);
+	closesocket(hClient[0]);
 	closesocket(hListen);
 
 	WSACleanup();
 }
 
+void printTime() {
+	std::time_t t = std::time(0);
+	std::tm* now = std::localtime(&t);
+
+	std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
+}
+
+void AcceptFun() {
+
+}
+
 void RecvFun() {
 	while (true) {
 		char cBuffer[PACKET_SIZE] = {};
-		if (recv(hClient, cBuffer, PACKET_SIZE, 0) <= 0)
+		if (recv(hClient[0], cBuffer, PACKET_SIZE, 0) <= 0)
 			break;
 
 		printf("Recv Msg : %s\n", cBuffer);
@@ -68,6 +86,6 @@ void SendFun() {
 	while (connected) {
 		std::string cMsg;
 		std::getline(std::cin, cMsg);
-		send(hClient, cMsg.c_str(), cMsg.size(), 0);
+		send(hClient[0], cMsg.c_str(), cMsg.size(), 0);
 	}
 }
