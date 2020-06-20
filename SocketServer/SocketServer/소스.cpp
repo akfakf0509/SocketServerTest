@@ -75,6 +75,7 @@ void RecvFun(void* p) {
 		if (recv(socket, cBuffer, PACKET_SIZE, 0) <= 0)
 			break;
 
+		printTime(); printf("Sended\n");
 		for (auto iter : hClient) {
 			send(iter, cBuffer, strlen(cBuffer), 0);
 		}
