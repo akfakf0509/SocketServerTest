@@ -13,9 +13,7 @@
 #define PACKET_SIZE 1024
 
 void printTime();
-void acceptFun();
-void RecvFun();
-void SendFun();
+void RecvFun(void*);
 
 std::vector<SOCKET> hClient;
 
@@ -40,17 +38,20 @@ int main() {
 	SOCKADDR_IN tClntAddr = {};
 	int iClntSize = sizeof(tClntAddr);
 	while (true) {
-		hClient.push_back(accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize));
+		SOCKET sock = accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize);
+		hClient.push_back(sock);
 
 		printTime(); std::cout << "IP : " << inet_ntoa(tClntAddr.sin_addr) << " Connected" << std::endl;
 		connected = true;
+		std::thread thread1(RecvFun, &sock);
+		thread1.join();
 	}
 
-	std::thread thread1(RecvFun);
-	std::thread thread2(SendFun);
+	//std::thread thread1(RecvFun);
+	//std::thread thread2(SendFun);
 
-	thread1.join();
-	thread2.join();
+	//thread1.join();
+	//thread2.join();
 
 	printf("Disconnected\n");
 
@@ -67,17 +68,16 @@ void printTime() {
 	std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
 }
 
-void AcceptFun() {
-
-}
-
-void RecvFun() {
+void RecvFun(void* p) {
+	SOCKET socket = (SOCKET)p;
 	while (true) {
 		char cBuffer[PACKET_SIZE] = {};
-		if (recv(hClient[0], cBuffer, PACKET_SIZE, 0) <= 0)
+		if (recv(socket, cBuffer, PACKET_SIZE, 0) <= 0)
 			break;
 
-		printf("Recv Msg : %s\n", cBuffer);
+		for (auto iter : hClient) {
+			send(iter, cBuffer, strlen(cBuffer), 0);
+		}
 	}
 	connected = false;
 }
@@ -87,5 +87,6 @@ void SendFun() {
 		std::string cMsg;
 		std::getline(std::cin, cMsg);
 		send(hClient[0], cMsg.c_str(), cMsg.size(), 0);
+	
 	}
 }
