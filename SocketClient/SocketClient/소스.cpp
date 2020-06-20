@@ -1,5 +1,7 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
+#include <ctime>
 #include <string>
 #include <thread>
 #include <stdio.h>
@@ -11,12 +13,11 @@
 #define PACKET_SIZE 1024
 #define SERVER_IP "58.228.116.60"
 
-void RecvFun();
-void SendFun();
+void printTime();
+void RecvThread(void*);
+int RecvFun(SOCKET, char*, int, int);
 
 SOCKET hSocket;
-
-bool connected = false;
 
 int main() {
 	WSADATA wsaData;
@@ -29,18 +30,33 @@ int main() {
 	tAddr.sin_port = htons(PORT);
 	tAddr.sin_addr.s_addr = inet_addr(SERVER_IP);
 
-	printf("Connecting..\n");
+	printTime(); printf("Connecting..\n");
 
 	connect(hSocket, (SOCKADDR*)&tAddr, sizeof(tAddr));
 
-	printf("Connected!\n");
-	connected = true;
+	printTime(); printf("Connected!\n");
 
-	std::thread thread1(RecvFun);
-	std::thread thread2(SendFun);
+	std::thread thread1(RecvThread, (void*)hSocket);
+
+	while (true) {
+		std::string str;
+
+		std::cout << ">> ";
+		std::getline(std::cin, str);
+
+		int size = str.size();
+		int sendsize = send(hSocket, (char*)size, sizeof(int), 0);
+		std::cout << "Sended size : " << sendsize << std::endl;
+		sendsize = send(hSocket, str.c_str(), size, 0);
+		std::cout << "Sended to Server" << std::endl;
+
+		if (sendsize <= 0) {
+			std::cout << "Falled send" << std::endl;
+			break;
+		}
+	}
 
 	thread1.join();
-	thread2.join();
 
 	closesocket(hSocket);
 
@@ -49,22 +65,51 @@ int main() {
 	system("pause");
 }
 
-void RecvFun() {
-	while (true) {
-		char cBuffer[PACKET_SIZE] = {};
+void printTime() {
+	std::time_t t = std::time(0);
+	std::tm* now = std::localtime(&t);
 
-		if (recv(hSocket, cBuffer, PACKET_SIZE, 0) <= 0)
-			break;
-
-		printf("Recv Msg : %s\n", cBuffer);
-	}
-	connected = false;
+	std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
 }
 
-void SendFun() {
-	while (connected) {
-		std::string cMsg;
-		std::getline(std::cin, cMsg);
-		send(hSocket, cMsg.c_str(), cMsg.size(), 0);
+void __cdecl RecvThread(void* p)
+{
+	SOCKET sock = (SOCKET)p;
+	char buf[256];
+	int size;
+	while (1)
+	{
+		//-----------서버로부터 수신------------
+		int recvsize = recv(sock, (char*)&size, sizeof(int), 0);
+		recvsize = recv(sock, buf, size, 0);
+		if (recvsize <= 0)
+		{
+			printTime(); printf("서버 접속종료\n");
+			break;
+		}
+		//------------------------------------------------
+		buf[recvsize] = '\0';
+		printTime(); printf("\r%s\n>>", buf);
 	}
+}
+
+int RecvFun(SOCKET s, char* buf, int len, int flags)		// 다 받을때 까지 리턴 안하는 함수...
+{
+	int received;		// 한번에 읽은 양..
+	char* ptr = buf;
+	int left = len;		//남은양..
+
+	while (left > 0) {
+		received = recv(s, ptr, left, flags);
+		if (received == SOCKET_ERROR)		// 에러났으면 에러 리턴..
+			return SOCKET_ERROR;
+		else if (received == 0)				// 다 읽어서 읽은거 없으면 그냥 break;
+			break;
+		left -= received;					// 한번 읽은만큼을 남은 양에서 뺌..
+		ptr += received;					// 한번 읽은만큼 저장할 버퍼를 옮김..
+											//    ==> 똑같이 ptr에서 돌리면 덮어씌웁니다...
+											//          ==> ptr은 주소에여 ㅇㅇ.. 저장할 공간의 시작주소
+	}
+
+	return (len - left);					// 길이에서 남은양을 뺀값을 리턴... 결국 읽으라는 길이를 리턴하는겁니다 ㅇㅇ..
 }

@@ -13,11 +13,11 @@
 #define PACKET_SIZE 1024
 
 void printTime();
-void RecvFun(void*);
+void RecvThread(void*);
+int RecvFun(SOCKET, char*, int, int);
 
 std::vector<SOCKET> hClient;
-
-bool connected = false;
+std::vector<std::thread*> threads;
 
 int main() {
 	WSADATA wsaData;
@@ -42,20 +42,15 @@ int main() {
 		hClient.push_back(sock);
 
 		printTime(); std::cout << "IP : " << inet_ntoa(tClntAddr.sin_addr) << " Connected" << std::endl;
-		connected = true;
-		std::thread thread1(RecvFun, &sock);
-		thread1.join();
+
+		std::thread *thread1 = new std::thread(RecvThread, (void*)sock);
+		threads.push_back(thread1);
 	}
 
-	//std::thread thread1(RecvFun);
-	//std::thread thread2(SendFun);
+	for (auto iter : threads) {
+		iter->join();
+	}
 
-	//thread1.join();
-	//thread2.join();
-
-	printf("Disconnected\n");
-
-	closesocket(hClient[0]);
 	closesocket(hListen);
 
 	WSACleanup();
@@ -68,26 +63,69 @@ void printTime() {
 	std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
 }
 
-void RecvFun(void* p) {
-	SOCKET socket = (SOCKET)p;
-	while (true) {
-		char cBuffer[PACKET_SIZE] = {};
-		if (recv(socket, cBuffer, PACKET_SIZE, 0) <= 0)
-			break;
-
-		printTime(); printf("Sended\n");
-		for (auto iter : hClient) {
-			send(iter, cBuffer, strlen(cBuffer), 0);
+void __cdecl RecvThread(void* p)
+{
+	SOCKET sock = (SOCKET)p;
+	char buf[256];
+	int size;
+	while (1)
+	{
+		//-----------클라이언트로부터 수신------------
+		printTime(); std::cout << "Waiting for Client" << std::endl;
+		int recvsize = RecvFun(sock, (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 읽고
+		recvsize = RecvFun(sock, buf, size, 0);								// 그 사이즈만큼의 데이터 읽기
+		if (recvsize <= 0)		break;
+		//------------------------------------------------
+		buf[recvsize] = '\0';
+		printTime(); printf("%s\n", buf);
+		//----------클라이언트에게 전송------------------
+		for (int i = 0; i < hClient.size(); i++)
+		{
+			if (hClient[i] != sock)
+			{
+				int sendsize = send(hClient[i], (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 보내고
+				sendsize = send(hClient[i], buf, strlen(buf), 0);					// 그 사이즈만큼 데이터 보냄..
+			}
 		}
+		printTime(); std::cout << "Sended to all Cliends" << std::endl;
+		//-----------------------------------------------
 	}
-	connected = false;
+	printTime(); printf("클라이언트 접속 종료\n");
+	//------------vector에 있는 데이터 지우기-----------
+	std::vector<SOCKET>::iterator iter = hClient.begin();
+	for (int i = 0; i < hClient.size(); i++)
+	{
+		if (hClient[i] == sock)
+		{
+			hClient.erase(iter);
+			break;
+		}
+		iter++;
+	}
+	//---------------------------------------------------
+
+	//------------소켓 해제---------------------
+	closesocket(sock);
+	//----------------------------------------
 }
 
-void SendFun() {
-	while (connected) {
-		std::string cMsg;
-		std::getline(std::cin, cMsg);
-		send(hClient[0], cMsg.c_str(), cMsg.size(), 0);
-	
+int RecvFun(SOCKET s, char* buf, int len, int flags)		// 다 받을때 까지 리턴 안하는 함수
+{
+	int received;		// 한번에 읽은 양
+	char* ptr = buf;
+	int left = len;		//남은양
+
+	while (left > 0) {
+		received = recv(s, ptr, left, flags);
+		if (received == SOCKET_ERROR)		// 에러났으면 에러 리턴
+			return SOCKET_ERROR;
+		else if (received == 0)				// 다 읽어서 읽은거 없으면 그냥 break;
+			break;
+		left -= received;					// 한번 읽은만큼을 남은 양에서 뺌
+		ptr += received;					// 한번 읽은만큼 저장할 버퍼를 옮김
+											//    ==> 똑같이 ptr에서 돌리면 덮어씌웁니다
+											//          ==> ptr은 주소에여 ㅇㅇ.. 저장할 공간의 시작주소
 	}
+
+	return (len - left);					// 길이에서 남은양을 뺀값을 리턴 결국 읽으라는 길이를 리턴하는겁니다 ㅇㅇ
 }
