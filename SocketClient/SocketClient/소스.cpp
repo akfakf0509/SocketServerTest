@@ -41,17 +41,14 @@ int main() {
 	while (true) {
 		std::string str;
 
-		std::cout << ">> ";
 		std::getline(std::cin, str);
 
 		int size = str.size();
-		int sendsize = send(hSocket, (char*)size, sizeof(int), 0);
-		std::cout << "Sended size : " << sendsize << std::endl;
+		int sendsize = send(hSocket, (char*)&size, sizeof(int), 0);
 		sendsize = send(hSocket, str.c_str(), size, 0);
-		std::cout << "Sended to Server" << std::endl;
 
 		if (sendsize <= 0) {
-			std::cout << "Falled send" << std::endl;
+			printTime(); std::cout << "Falled send" << std::endl;
 			break;
 		}
 	}
@@ -89,7 +86,7 @@ void __cdecl RecvThread(void* p)
 		}
 		//------------------------------------------------
 		buf[recvsize] = '\0';
-		printTime(); printf("\r%s\n>>", buf);
+		printTime(); printf("%s\n", buf);
 	}
 }
 

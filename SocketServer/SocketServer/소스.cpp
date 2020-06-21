@@ -13,7 +13,7 @@
 #define PACKET_SIZE 1024
 
 void printTime();
-void RecvThread(void*);
+void RecvThread(void*, char*);
 int RecvFun(SOCKET, char*, int, int);
 
 std::vector<SOCKET> hClient;
@@ -43,7 +43,7 @@ int main() {
 
 		printTime(); std::cout << "IP : " << inet_ntoa(tClntAddr.sin_addr) << " Connected" << std::endl;
 
-		std::thread *thread1 = new std::thread(RecvThread, (void*)sock);
+		std::thread *thread1 = new std::thread(RecvThread, (void*)sock, inet_ntoa(tClntAddr.sin_addr));
 		threads.push_back(thread1);
 	}
 
@@ -63,7 +63,7 @@ void printTime() {
 	std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
 }
 
-void __cdecl RecvThread(void* p)
+void __cdecl RecvThread(void* p, char* ip)
 {
 	SOCKET sock = (SOCKET)p;
 	char buf[256];
@@ -71,13 +71,12 @@ void __cdecl RecvThread(void* p)
 	while (1)
 	{
 		//-----------클라이언트로부터 수신------------
-		printTime(); std::cout << "Waiting for Client" << std::endl;
 		int recvsize = RecvFun(sock, (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 읽고
 		recvsize = RecvFun(sock, buf, size, 0);								// 그 사이즈만큼의 데이터 읽기
 		if (recvsize <= 0)		break;
 		//------------------------------------------------
 		buf[recvsize] = '\0';
-		printTime(); printf("%s\n", buf);
+		printTime(); printf("%s : %s\n", ip, buf);
 		//----------클라이언트에게 전송------------------
 		for (int i = 0; i < hClient.size(); i++)
 		{
@@ -87,10 +86,9 @@ void __cdecl RecvThread(void* p)
 				sendsize = send(hClient[i], buf, strlen(buf), 0);					// 그 사이즈만큼 데이터 보냄..
 			}
 		}
-		printTime(); std::cout << "Sended to all Cliends" << std::endl;
 		//-----------------------------------------------
 	}
-	printTime(); printf("클라이언트 접속 종료\n");
+	printTime(); printf("IP : %s Disconnected\n", ip);
 	//------------vector에 있는 데이터 지우기-----------
 	std::vector<SOCKET>::iterator iter = hClient.begin();
 	for (int i = 0; i < hClient.size(); i++)
