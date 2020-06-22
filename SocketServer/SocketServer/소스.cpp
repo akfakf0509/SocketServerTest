@@ -13,11 +13,13 @@
 #define PACKET_SIZE 1024
 
 void printTime();
-void RecvThread(void*, char*);
+void RecvThread(void*, std::string);
 int RecvFun(SOCKET, char*, int, int);
 
 std::vector<SOCKET> hClient;
 std::vector<std::thread*> threads;
+
+const bool censor_ip = true;
 
 int main() {
 	WSADATA wsaData;
@@ -41,9 +43,22 @@ int main() {
 		SOCKET sock = accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize);
 		hClient.push_back(sock);
 
-		printTime(); std::cout << "IP : " << inet_ntoa(tClntAddr.sin_addr) << " Connected" << std::endl;
+		std::string ip(inet_ntoa(tClntAddr.sin_addr));
 
-		std::thread *thread1 = new std::thread(RecvThread, (void*)sock, inet_ntoa(tClntAddr.sin_addr));
+		if (censor_ip) {
+			int censor_count = 0;
+			for (auto iter = --ip.end(); (*iter) != '.'; iter--) {
+				(*iter) = '*';
+				censor_count++;
+			}
+			for (censor_count; censor_count < 3; censor_count++) {
+				ip.push_back('*');
+			}
+		}
+
+		printTime(); std::cout << "IP : " << ip << " Connected" << std::endl;
+
+		std::thread *thread1 = new std::thread(RecvThread, (void*)sock, ip);
 		threads.push_back(thread1);
 	}
 
@@ -63,9 +78,10 @@ void printTime() {
 	std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
 }
 
-void __cdecl RecvThread(void* p, char* ip)
+void __cdecl RecvThread(void* p, std::string ip)
 {
 	SOCKET sock = (SOCKET)p;
+
 	char buf[256];
 	int size;
 	while (1)
@@ -76,7 +92,7 @@ void __cdecl RecvThread(void* p, char* ip)
 		if (recvsize <= 0)		break;
 		//------------------------------------------------
 		buf[recvsize] = '\0';
-		printTime(); printf("%s : %s\n", ip, buf);
+		printTime(); std::cout << ip << " : " << buf << std::endl;
 		//----------클라이언트에게 전송------------------
 		for (int i = 0; i < hClient.size(); i++)
 		{
@@ -88,7 +104,7 @@ void __cdecl RecvThread(void* p, char* ip)
 		}
 		//-----------------------------------------------
 	}
-	printTime(); printf("IP : %s Disconnected\n", ip);
+	printTime(); std::cout << "IP : " << ip << " DIsconnected" << std::endl;
 	//------------vector에 있는 데이터 지우기-----------
 	std::vector<SOCKET>::iterator iter = hClient.begin();
 	for (int i = 0; i < hClient.size(); i++)
