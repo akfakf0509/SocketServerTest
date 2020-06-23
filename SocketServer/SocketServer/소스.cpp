@@ -4,8 +4,10 @@
 #include <ctime>
 #include <string>
 #include <vector>
+#include <queue>
 #include <thread>
 #include <WinSock2.h>
+#include "Client.h"
 
 #pragma comment(lib, "ws2_32")
 
@@ -13,13 +15,15 @@
 #define PACKET_SIZE 1024
 
 void printTime();
-void RecvThread(void*, std::string);
+void RecvThread(Client*);
 int RecvFun(SOCKET, char*, int, int);
+void CommandFun();
 
-std::vector<SOCKET> hClient;
+std::vector<Client*> hClient;
 std::vector<std::thread*> threads;
 
 const bool censor_ip = true;
+
 
 int main() {
 	WSADATA wsaData;
@@ -41,24 +45,13 @@ int main() {
 	int iClntSize = sizeof(tClntAddr);
 	while (true) {
 		SOCKET sock = accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize);
-		hClient.push_back(sock);
+		Client *client = new Client((void*)sock, inet_ntoa(tClntAddr.sin_addr));
 
-		std::string ip(inet_ntoa(tClntAddr.sin_addr));
+		hClient.push_back(client);
 
-		if (censor_ip) {
-			int censor_count = 0;
-			for (auto iter = --ip.end(); (*iter) != '.'; iter--) {
-				(*iter) = '*';
-				censor_count++;
-			}
-			for (censor_count; censor_count < 3; censor_count++) {
-				ip.push_back('*');
-			}
-		}
+		printTime(); std::cout << "IP : " << client->getIP(censor_ip) << " Connected" << std::endl;
 
-		printTime(); std::cout << "IP : " << ip << " Connected" << std::endl;
-
-		std::thread *thread1 = new std::thread(RecvThread, (void*)sock, ip);
+		std::thread *thread1 = new std::thread(RecvThread, client);
 		threads.push_back(thread1);
 	}
 
@@ -78,48 +71,36 @@ void printTime() {
 	std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
 }
 
-void __cdecl RecvThread(void* p, std::string ip)
+void __cdecl RecvThread(Client* client_)
 {
-	SOCKET sock = (SOCKET)p;
+	Client client = *client_;
 
 	char buf[256];
 	int size;
 	while (1)
 	{
 		//-----------≈¨∂Û¿Ãæ∆Æ∑Œ∫Œ≈Õ ºˆΩ≈------------
-		int recvsize = RecvFun(sock, (char*)&size, sizeof(int), 0);		// ªÁ¿Ã¡Ó∏¶ ∏’¿˙ ¿–∞Ì
-		recvsize = RecvFun(sock, buf, size, 0);								// ±◊ ªÁ¿Ã¡Ó∏∏≈≠¿« µ•¿Ã≈Õ ¿–±‚
+		int recvsize = RecvFun(client.getSocket(), (char*)&size, sizeof(int), 0);		// ªÁ¿Ã¡Ó∏¶ ∏’¿˙ ¿–∞Ì
+		recvsize = RecvFun(client.getSocket(), buf, size, 0);								// ±◊ ªÁ¿Ã¡Ó∏∏≈≠¿« µ•¿Ã≈Õ ¿–±‚
 		if (recvsize <= 0)		break;
 		//------------------------------------------------
 		buf[recvsize] = '\0';
-		printTime(); std::cout << ip << " : " << buf << std::endl;
+		printTime(); std::cout << client.getIP(censor_ip) << " : " << buf << std::endl;
 		//----------≈¨∂Û¿Ãæ∆Æø°∞‘ ¿¸º€------------------
-		for (int i = 0; i < hClient.size(); i++)
+		for (auto iter : hClient)
 		{
-			if (hClient[i] != sock)
+			if (iter->getSocket() != client.getSocket())
 			{
-				int sendsize = send(hClient[i], (char*)&size, sizeof(int), 0);		// ªÁ¿Ã¡Ó∏¶ ∏’¿˙ ∫∏≥ª∞Ì
-				sendsize = send(hClient[i], buf, strlen(buf), 0);					// ±◊ ªÁ¿Ã¡Ó∏∏≈≠ µ•¿Ã≈Õ ∫∏≥ø..
+				int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// ªÁ¿Ã¡Ó∏¶ ∏’¿˙ ∫∏≥ª∞Ì
+				sendsize = send(iter->getSocket(), buf, strlen(buf), 0);					// ±◊ ªÁ¿Ã¡Ó∏∏≈≠ µ•¿Ã≈Õ ∫∏≥ø..
 			}
 		}
 		//-----------------------------------------------
 	}
-	printTime(); std::cout << "IP : " << ip << " DIsconnected" << std::endl;
-	//------------vectorø° ¿÷¥¬ µ•¿Ã≈Õ ¡ˆøÏ±‚-----------
-	std::vector<SOCKET>::iterator iter = hClient.begin();
-	for (int i = 0; i < hClient.size(); i++)
-	{
-		if (hClient[i] == sock)
-		{
-			hClient.erase(iter);
-			break;
-		}
-		iter++;
-	}
-	//---------------------------------------------------
+	printTime(); std::cout << "IP : " << client.getIP(censor_ip) << " DIsconnected" << std::endl;
 
 	//------------º“ƒœ «ÿ¡¶---------------------
-	closesocket(sock);
+	closesocket(client.getSocket());
 	//----------------------------------------
 }
 
@@ -142,4 +123,28 @@ int RecvFun(SOCKET s, char* buf, int len, int flags)		// ¥Ÿ πﬁ¿ª∂ß ±Ó¡ˆ ∏Æ≈œ æ»«
 	}
 
 	return (len - left);					// ±Ê¿Ãø°º≠ ≥≤¿∫æÁ¿ª ª´∞™¿ª ∏Æ≈œ ∞·±π ¿–¿∏∂Û¥¬ ±Ê¿Ã∏¶ ∏Æ≈œ«œ¥¬∞Ã¥œ¥Ÿ §∑§∑
+}
+
+void CommandFun() {
+	std::string str;
+
+	std::getline(std::cin, str);
+
+	if (str[0] == '/') {
+		std::queue<std::string> megs;
+
+		std::string tmp;
+
+		for (auto iter : str) {
+			if (iter == ' ') {
+				megs.push(tmp);
+				tmp.clear();
+			}
+			else {
+				tmp.push_back(iter);
+			}
+		}
+
+		//add here
+	}
 }

@@ -41,7 +41,9 @@ int main() {
 	while (true) {
 		std::string str;
 
-		std::getline(std::cin, str);
+		while (str.size() == 0) {
+			std::getline(std::cin, str);
+		}
 
 		int size = str.size();
 		int sendsize = send(hSocket, (char*)&size, sizeof(int), 0);
