@@ -22,14 +22,15 @@ void CommandFun();
 std::vector<Client*> hClient;
 std::vector<std::thread*> threads;
 
-const bool censor_ip = true;
+SOCKET hListen;
 
+bool censor_ip = true;
+bool wait_client = true;
 
 int main() {
 	WSADATA wsaData;
 	WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-	SOCKET hListen;
 	hListen = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	SOCKADDR_IN tListenAddr = {};
@@ -43,16 +44,19 @@ int main() {
 
 	SOCKADDR_IN tClntAddr = {};
 	int iClntSize = sizeof(tClntAddr);
-	while (true) {
+
+	threads.push_back(new std::thread(CommandFun));
+
+	while (wait_client) {
 		SOCKET sock = accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize);
-		Client *client = new Client((void*)sock, inet_ntoa(tClntAddr.sin_addr));
+		Client* client = new Client((void*)sock, inet_ntoa(tClntAddr.sin_addr));
 
 		hClient.push_back(client);
 
 		printTime(); std::cout << "IP : " << client->getIP(censor_ip) << " Connected" << std::endl;
 
-		std::thread *thread1 = new std::thread(RecvThread, client);
-		threads.push_back(thread1);
+		std::thread* thread = new std::thread(RecvThread, client);
+		threads.push_back(thread);
 	}
 
 	for (auto iter : threads) {
@@ -126,11 +130,11 @@ int RecvFun(SOCKET s, char* buf, int len, int flags)		// ¥Ÿ πﬁ¿ª∂ß ±Ó¡ˆ ∏Æ≈œ æ»«
 }
 
 void CommandFun() {
-	std::string str;
+	while (true) {
+		std::string str;
 
-	std::getline(std::cin, str);
+		std::getline(std::cin, str);
 
-	if (str[0] == '/') {
 		std::queue<std::string> megs;
 
 		std::string tmp;
@@ -144,7 +148,56 @@ void CommandFun() {
 				tmp.push_back(iter);
 			}
 		}
+		megs.push(tmp);
+		tmp.clear();
 
-		//add here
+		if (megs.size() > 0) {
+			tmp = megs.front();
+			megs.pop();
+			if (tmp == "set" && megs.size() > 0) {
+				tmp = megs.front();
+				megs.pop();
+				if (tmp == "do_censor" && megs.size() > 0) {
+					tmp = megs.front();
+					megs.pop();
+					if (tmp == "true" || tmp == "1") {
+						censor_ip = true;
+					}
+					else if (tmp == "false" || tmp == "0") {
+						censor_ip = false;
+					}
+					printTime(); std::cout << "now do_censor is " << censor_ip << std::endl;
+				}
+				else {
+					printTime(); std::cout << "Can not find value" << std::endl;
+				}
+
+			}
+			else if (tmp == "stop") {
+				printTime(); std::cout << "stopping.." << std::endl;
+				break;
+			}
+			else if (tmp == "say" && megs.size() > 0) {
+				tmp = megs.front();
+				while (megs.size() > 1) {
+					megs.pop();
+					tmp += " " + megs.front();
+				}
+
+				for (auto iter : hClient)
+				{
+					int size = tmp.size();
+					int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// ªÁ¿Ã¡Ó∏¶ ∏’¿˙ ∫∏≥ª∞Ì
+					sendsize = send(iter->getSocket(), tmp.c_str(), size, 0);					// ±◊ ªÁ¿Ã¡Ó∏∏≈≠ µ•¿Ã≈Õ ∫∏≥ø..
+				}
+			}
+			else {
+				printTime(); std::cout << "Can not find function" << std::endl;
+			}
+
+		}
+		else {
+			printTime(); std::cout << "Can not find command" << std::endl;
+		}
 	}
 }

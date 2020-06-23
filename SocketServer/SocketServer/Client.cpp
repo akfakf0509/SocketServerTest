@@ -26,15 +26,17 @@ std::string Client::getIP() {
 std::string Client::getIP(bool do_censor) {
 	std::string new_ip(ip);
 
-	int censor_count = 0;
+	if (do_censor) {
+		int censor_count = 0;
 
-	for (auto iter = --new_ip.end(); (*iter) != '.'; iter--) {
-		(*iter) = '*';
-		censor_count++;
-	}
+		for (auto iter = --new_ip.end(); (*iter) != '.'; iter--) {
+			(*iter) = '*';
+			censor_count++;
+		}
 
-	for (censor_count; censor_count < 3; censor_count++) {
-		new_ip.push_back('*');
+		for (censor_count; censor_count < 3; censor_count++) {
+			new_ip.push_back('*');
+		}
 	}
 
 	return new_ip;
