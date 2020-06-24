@@ -4,7 +4,6 @@ Client::Client(void* socket, std::string ip) : socket((SOCKET)socket), ip(ip) {
 }
 
 Client::~Client() {
-	shutdown(socket, SD_SEND);
 	closesocket(socket);
 }
 

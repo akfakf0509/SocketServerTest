@@ -56,7 +56,7 @@ int main() {
 	tListenAddr.sin_port = htons(PORT);
 	tListenAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	printTime(); textcolor(GREEN, BLACK); std::cout << "Successfully opended" << std::endl;
+	printTime(); textcolor(GREEN, BLACK); std::cout << "Successfully opended" << std::endl; textcolor(WHITE, BLACK);
 	bind(hListen, (SOCKADDR*)&tListenAddr, sizeof(tListenAddr));
 	listen(hListen, SOMAXCONN);
 
@@ -219,10 +219,15 @@ void CommandFun() {
 				printTime(); textcolor(GREEN, BLACK); std::cout << "stopping.." << std::endl;
 
 				for (auto iter : hClient) {
-					shutdown(iter->getSocket(), SD_SEND);
+					shutdown(iter->getSocket(), SD_BOTH);
+					closesocket(iter->getSocket());
+
+					delete iter;
 				}
 
-				shutdown(hListen, SD_SEND);
+				wait_client = false;
+				shutdown(hListen, SD_BOTH);
+				closesocket(hListen);
 
 				textcolor(WHITE, BLACK);
 				break;
@@ -266,28 +271,33 @@ void CommandFun() {
 					}
 
 					if (is_ip) {
+						bool kicked = false;
 						for (auto iter = hClient.begin(); iter != hClient.end(); iter++) {
 							if ((*iter)->getIP() == tmp) {
-								shutdown((*iter)->getSocket(), SD_SEND);
 								closesocket((*iter)->getSocket());
 
 								delete (*iter);
 
 								hClient.erase(iter);
+
+								kicked = true;
 								break;
 							}
 						}
+						if(!kicked)
+							printTime(); textcolor(RED, BLACK); std::cout << "Can not find target" << std::endl;
 					}
-					else {
+					else if(0 <= std::stol(tmp) && std::stoi(tmp) < (int)hClient.size()){
 						int index = std::stoi(tmp);
 						
-						shutdown(hClient[index]->getSocket(), SD_SEND);
 						closesocket(hClient[index]->getSocket());
 
 						delete (hClient[index]);
 
 						hClient.erase(hClient.begin() + index);
-						break;
+					}
+					else {
+						printTime(); textcolor(RED, BLACK); std::cout << "Can not find target" << std::endl;
 					}
 				}
 				else {
