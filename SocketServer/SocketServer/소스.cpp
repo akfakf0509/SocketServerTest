@@ -120,7 +120,7 @@ void __cdecl RecvThread(Client* client_)
 			if (iter->getSocket() != client.getSocket())
 			{
 				int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 보내고
-				sendsize = send(iter->getSocket(), buf, strlen(buf), 0);					// 그 사이즈만큼 데이터 보냄..
+				sendsize = send(iter->getSocket(), buf, (int)strlen(buf), 0);					// 그 사이즈만큼 데이터 보냄..
 			}
 		}
 		//-----------------------------------------------
@@ -187,24 +187,33 @@ void CommandFun() {
 		if (megs.size() > 0) {
 			tmp = megs.front();
 			megs.pop();
-			if (tmp == "set" && megs.size() > 0) {
-				tmp = megs.front();
-				megs.pop();
-				if (tmp == "do_censor" && megs.size() > 0) {
+			if (tmp == "set"){
+				if (megs.size() > 0) {
 					tmp = megs.front();
 					megs.pop();
-					if (tmp == "true" || tmp == "1") {
-						censor_ip = true;
+					if (tmp == "do_censor") {
+						if (megs.size() > 0) {
+							tmp = megs.front();
+							megs.pop();
+							if (tmp == "true" || tmp == "1") {
+								censor_ip = true;
+							}
+							else if (tmp == "false" || tmp == "0") {
+								censor_ip = false;
+							}
+							printTime(); textcolor(GREEN, BLACK); std::cout << "now do_censor is " << censor_ip << std::endl;
+						}
+						else {
+							printTime(); textcolor(RED, BLACK); std::cout << "Can not find value" << std::endl;
+						}
 					}
-					else if (tmp == "false" || tmp == "0") {
-						censor_ip = false;
+					else {
+						printTime(); textcolor(RED, BLACK); std::cout << "Can not find setting name" << std::endl;
 					}
-					printTime(); textcolor(GREEN, BLACK); std::cout << "now do_censor is " << censor_ip << std::endl;
 				}
 				else {
-					printTime(); textcolor(RED, BLACK); std::cout << "Can not find value" << std::endl;
+					printTime(); textcolor(RED, BLACK); std::cout << "Can not find setting name" << std::endl;
 				}
-
 			}
 			else if (tmp == "stop") {
 				printTime(); textcolor(GREEN, BLACK); std::cout << "stopping.." << std::endl;
@@ -218,18 +227,23 @@ void CommandFun() {
 				textcolor(WHITE, BLACK);
 				break;
 			}
-			else if (tmp == "say" && megs.size() > 0) {
-				tmp = megs.front();
-				while (megs.size() > 1) {
-					megs.pop();
-					tmp += " " + megs.front();
-				}
+			else if (tmp == "say") {
+				if (megs.size() > 0) {
+					tmp = megs.front();
+					while (megs.size() > 1) {
+						megs.pop();
+						tmp += " " + megs.front();
+					}
 
-				for (auto iter : hClient)
-				{
-					int size = tmp.size();
-					int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 보내고
-					sendsize = send(iter->getSocket(), tmp.c_str(), size, 0);					// 그 사이즈만큼 데이터 보냄..
+					for (auto iter : hClient)
+					{
+						int size = (int)tmp.size();
+						int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 보내고
+						sendsize = send(iter->getSocket(), tmp.c_str(), size, 0);					// 그 사이즈만큼 데이터 보냄..
+					}
+				}
+				else {
+					printTime(); textcolor(RED, BLACK); std::cout << "Can not find msg" << std::endl;
 				}
 			}
 			else if (tmp == "list") {
@@ -239,6 +253,45 @@ void CommandFun() {
 				int index = 0;
 				for (auto iter : hClient) {
 					printTime(); textcolor(GREEN, BLACK); std::cout << "[" << index++ << "]" << " IP : " << iter->getIP(censor_ip) << std::endl;
+				}
+			}
+			else if (tmp == "kick") {
+				if (megs.size() > 0) {
+					tmp = megs.front();
+					bool is_ip = false;
+
+					for (auto iter : tmp) {
+						if (iter == '.')
+							is_ip = true;
+					}
+
+					if (is_ip) {
+						for (auto iter = hClient.begin(); iter != hClient.end(); iter++) {
+							if ((*iter)->getIP() == tmp) {
+								shutdown((*iter)->getSocket(), SD_SEND);
+								closesocket((*iter)->getSocket());
+
+								delete (*iter);
+
+								hClient.erase(iter);
+								break;
+							}
+						}
+					}
+					else {
+						int index = std::stoi(tmp);
+						
+						shutdown(hClient[index]->getSocket(), SD_SEND);
+						closesocket(hClient[index]->getSocket());
+
+						delete (hClient[index]);
+
+						hClient.erase(hClient.begin() + index);
+						break;
+					}
+				}
+				else {
+					printTime(); textcolor(RED, BLACK); std::cout << "Can not find target" << std::endl;
 				}
 			}
 			else {
