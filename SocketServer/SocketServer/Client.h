@@ -19,5 +19,7 @@ public:
 	SOCKET getSocket();
 	std::string getIP();
 	std::string getIP(bool);
+
+	bool operator==(Client);
 };
 

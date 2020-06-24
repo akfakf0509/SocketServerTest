@@ -14,10 +14,28 @@
 #define PORT 4578
 #define PACKET_SIZE 1024
 
+#define BLACK 0 
+#define BLUE 1 
+#define GREEN 2 
+#define CYAN 3 
+#define RED 4 
+#define MAGENTA 5 
+#define BROWN 6 
+#define LIGHTGRAY 7 
+#define DARKGRAY 8 
+#define LIGHTBLUE 9 
+#define LIGHTGREEN 10 
+#define LIGHTCYAN 11 
+#define LIGHTRED 12 
+#define LIGHTMAGENTA 13 
+#define YELLOW 14 
+#define WHITE 15 
+
 void printTime();
 void RecvThread(Client*);
 int RecvFun(SOCKET, char*, int, int);
 void CommandFun();
+void textcolor(int, int);
 
 std::vector<Client*> hClient;
 std::vector<std::thread*> threads;
@@ -38,7 +56,7 @@ int main() {
 	tListenAddr.sin_port = htons(PORT);
 	tListenAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	printTime(); std::cout << "Successfully opended" << std::endl;
+	printTime(); textcolor(GREEN, BLACK); std::cout << "Successfully opended" << std::endl;
 	bind(hListen, (SOCKADDR*)&tListenAddr, sizeof(tListenAddr));
 	listen(hListen, SOMAXCONN);
 
@@ -53,7 +71,7 @@ int main() {
 
 		hClient.push_back(client);
 
-		printTime(); std::cout << "IP : " << client->getIP(censor_ip) << " Connected" << std::endl;
+		printTime(); textcolor(GREEN, BLACK); std::cout << "IP : " << client->getIP(censor_ip) << " Connected" << std::endl;
 
 		std::thread* thread = new std::thread(RecvThread, client);
 		threads.push_back(thread);
@@ -68,11 +86,17 @@ int main() {
 	WSACleanup();
 }
 
+void textcolor(int foreground, int background)
+{
+	int color = foreground + background * 16;
+	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
+}
+
 void printTime() {
 	std::time_t t = std::time(0);
 	std::tm* now = std::localtime(&t);
 
-	std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
+	textcolor(WHITE, BLACK); std::cout << "[" << now->tm_hour << ":" << now->tm_min << ":" << now->tm_sec << "] ";
 }
 
 void __cdecl RecvThread(Client* client_)
@@ -89,7 +113,7 @@ void __cdecl RecvThread(Client* client_)
 		if (recvsize <= 0)		break;
 		//------------------------------------------------
 		buf[recvsize] = '\0';
-		printTime(); std::cout << client.getIP(censor_ip) << " : " << buf << std::endl;
+		printTime(); textcolor(WHITE, BLACK); std::cout << client.getIP(censor_ip) << " : " << buf << std::endl;
 		//----------≈¨∂Û¿Ãæ∆Æø°∞‘ ¿¸º€------------------
 		for (auto iter : hClient)
 		{
@@ -101,7 +125,14 @@ void __cdecl RecvThread(Client* client_)
 		}
 		//-----------------------------------------------
 	}
-	printTime(); std::cout << "IP : " << client.getIP(censor_ip) << " DIsconnected" << std::endl;
+	printTime(); textcolor(GREEN, BLACK); std::cout << "IP : " << client.getIP(censor_ip) << " DIsconnected" << std::endl;
+
+	for (auto iter = hClient.begin(); iter != hClient.end(); iter++) {
+		if ((**iter) == client) {
+			hClient.erase(iter);
+			break;
+		}
+	}
 
 	//------------º“ƒœ «ÿ¡¶---------------------
 	closesocket(client.getSocket());
@@ -132,6 +163,8 @@ int RecvFun(SOCKET s, char* buf, int len, int flags)		// ¥Ÿ πﬁ¿ª∂ß ±Ó¡ˆ ∏Æ≈œ æ»«
 void CommandFun() {
 	while (true) {
 		std::string str;
+
+		textcolor(WHITE, BLACK);
 
 		std::getline(std::cin, str);
 
@@ -166,15 +199,23 @@ void CommandFun() {
 					else if (tmp == "false" || tmp == "0") {
 						censor_ip = false;
 					}
-					printTime(); std::cout << "now do_censor is " << censor_ip << std::endl;
+					printTime(); textcolor(GREEN, BLACK); std::cout << "now do_censor is " << censor_ip << std::endl;
 				}
 				else {
-					printTime(); std::cout << "Can not find value" << std::endl;
+					printTime(); textcolor(RED, BLACK); std::cout << "Can not find value" << std::endl;
 				}
 
 			}
 			else if (tmp == "stop") {
-				printTime(); std::cout << "stopping.." << std::endl;
+				printTime(); textcolor(GREEN, BLACK); std::cout << "stopping.." << std::endl;
+
+				for (auto iter : hClient) {
+					shutdown(iter->getSocket(), SD_SEND);
+				}
+
+				shutdown(hListen, SD_SEND);
+
+				textcolor(WHITE, BLACK);
 				break;
 			}
 			else if (tmp == "say" && megs.size() > 0) {
@@ -191,13 +232,22 @@ void CommandFun() {
 					sendsize = send(iter->getSocket(), tmp.c_str(), size, 0);					// ±◊ ªÁ¿Ã¡Ó∏∏≈≠ µ•¿Ã≈Õ ∫∏≥ø..
 				}
 			}
+			else if (tmp == "list") {
+				if (hClient.empty()) {
+					printTime(); textcolor(GREEN, BLACK); std::cout << "No clients" << std::endl;
+				}
+				int index = 0;
+				for (auto iter : hClient) {
+					printTime(); textcolor(GREEN, BLACK); std::cout << "[" << index++ << "]" << " IP : " << iter->getIP(censor_ip) << std::endl;
+				}
+			}
 			else {
-				printTime(); std::cout << "Can not find function" << std::endl;
+				printTime(); textcolor(RED, BLACK); std::cout << "Can not find function" << std::endl;
 			}
 
 		}
 		else {
-			printTime(); std::cout << "Can not find command" << std::endl;
+			printTime(); textcolor(RED, BLACK); std::cout << "Can not find command" << std::endl;
 		}
 	}
 }

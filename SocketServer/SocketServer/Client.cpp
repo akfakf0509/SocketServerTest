@@ -41,3 +41,7 @@ std::string Client::getIP(bool do_censor) {
 
 	return new_ip;
 }
+
+bool Client::operator==(Client client) {
+	return this->getSocket() == client.getSocket();
+}
