@@ -11,7 +11,8 @@
 
 #define PORT 4578
 #define PACKET_SIZE 1024
-#define SERVER_IP "192.168.43.147" //"58.228.116.60"
+#define SERVER_IP "58.228.116.60"
+//#define SERVER_IP "192.168.43.147"
 
 void printTime();
 void RecvThread(void*);
