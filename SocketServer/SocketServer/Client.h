@@ -3,12 +3,14 @@
 #include <string>
 #include <WinSock2.h>
 
-#pragma comment(lib, "ws2_32")
+enum STATUS { WAIT, MATCH, PLAY };
+
 class Client
 {
 private:
 	SOCKET socket;
 	std::string ip;
+	STATUS status;
 public:
 	Client(void*, std::string);
 	~Client();
