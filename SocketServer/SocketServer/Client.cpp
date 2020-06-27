@@ -1,6 +1,6 @@
 #include "Client.h"
 
-Client::Client(void* socket, std::string ip) : socket((SOCKET)socket), ip(ip) {
+Client::Client(void* socket, std::string ip, STATUS status) : socket((SOCKET)socket), ip(ip), status(status) {
 }
 
 Client::~Client() {
@@ -13,6 +13,10 @@ void Client::setSocket(void* socket_) {
 
 void Client::setIP(std::string ip_) {
 	ip = ip_;
+}
+
+void Client::setStatus(STATUS status_) {
+	status = status_;
 }
 
 SOCKET Client::getSocket() {
@@ -40,6 +44,10 @@ std::string Client::getIP(bool do_censor) {
 	}
 
 	return new_ip;
+}
+
+STATUS Client::getStatus() {
+	return status;
 }
 
 bool Client::operator==(Client client) {

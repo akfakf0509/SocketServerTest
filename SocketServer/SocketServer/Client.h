@@ -12,15 +12,17 @@ private:
 	std::string ip;
 	STATUS status;
 public:
-	Client(void*, std::string);
+	Client(void*, std::string, STATUS);
 	~Client();
 
 	void setSocket(void*);
 	void setIP(std::string);
+	void setStatus(STATUS);
 
 	SOCKET getSocket();
 	std::string getIP();
 	std::string getIP(bool);
+	STATUS getStatus();
 
 	bool operator==(Client);
 };
