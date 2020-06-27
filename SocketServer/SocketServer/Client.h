@@ -3,7 +3,7 @@
 #include <string>
 #include <WinSock2.h>
 
-enum STATUS { WAIT, MATCH, PLAY };
+enum class STATUS { WAIT, MATCH, PLAY };
 
 class Client
 {
