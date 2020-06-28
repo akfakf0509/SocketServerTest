@@ -37,6 +37,7 @@ void RecvThread(Client*);
 int RecvFun(SOCKET, char*, int, int);
 void CommandFun();
 void textcolor(int, int);
+void MakeRoom(Client*);
 void Match(Client*);
 void Match(int, Client*);
 
@@ -108,13 +109,24 @@ void __cdecl RecvThread(Client* client_)
 {
 	Client client = *client_;
 
-	char buf[256];
-	int size;
+	unsigned char recv_buf[256] = "";
+	int size = 0;
 	while (1)
 	{
 		//-----------클라이언트로부터 수신------------
-		int recvsize = RecvFun(client.getSocket(), (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 읽고
-		recvsize = RecvFun(client.getSocket(), buf, size, 0);								// 그 사이즈만큼의 데이터 읽기
+		while (true) {
+			int recvsize = recv(client.getSocket(), (char*)recv_buf, 1, 0);
+			if (recv_buf[0] == '$' || recvsize <= 0)
+				break;
+			std::cout << std::string((char*)recv_buf) << std::endl;
+			size = size * 10 + std::stoi(std::string((char*)recv_buf));
+		}
+		int recvsize = RecvFun(client.getSocket(), (char*)recv_buf, size, 0);							// 그 사이즈만큼의 데이터 읽기
+
+		std::string buf((char*)recv_buf);
+
+		std::cout << buf << std::endl;
+
 		if (recvsize <= 0)		break;
 		//------------------------------------------------
 		buf[recvsize] = '\0';
@@ -152,7 +164,7 @@ void __cdecl RecvThread(Client* client_)
 							if (tmp == "AUTO") {
 								client.setStatus(STATUS::MATCH);
 								printTime(); textcolor(GREEN, BLACK); std::cout << "Match auto" << std::endl;
-								//connect room in auto
+								Match(&client);
 							}
 							else if (tmp == "ROOM_ID") {
 								if (megs.size() > 0) {
@@ -160,11 +172,15 @@ void __cdecl RecvThread(Client* client_)
 									megs.pop();
 
 									client.setStatus(STATUS::MATCH);
-									//coonect room in room_id
+									Match(std::stoi(tmp), &client);
 								}
 								else {
 									printTime(); textcolor(RED, BLACK); std::cout << "Can not find room_id" << std::endl;
 								}
+							}
+							else if (tmp == "CREATE") {
+								client.setStatus(STATUS::MATCH);
+								MakeRoom(&client);
 							}
 							else {
 								printTime(); textcolor(RED, BLACK); std::cout << "Can not find command : TO_SERVER JOIN >>" << tmp << "<< here" << std::endl;
@@ -189,7 +205,7 @@ void __cdecl RecvThread(Client* client_)
 					if (iter->getSocket() != client.getSocket())
 					{
 						int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 보내고
-						sendsize = send(iter->getSocket(), buf, (int)strlen(buf), 0);					// 그 사이즈만큼 데이터 보냄..
+						sendsize = send(iter->getSocket(), buf.c_str(), buf.size(), 0);					// 그 사이즈만큼 데이터 보냄..
 					}
 				}
 				//-----------------------------------------------
@@ -203,7 +219,7 @@ void __cdecl RecvThread(Client* client_)
 		}
 	}
 
-	printTime(); textcolor(GREEN, BLACK); std::cout << "IP : " << client.getIP(censor_ip) << " DIsconnected" << std::endl;
+	printTime(); textcolor(GREEN, BLACK); std::cout << "IP : " << client.getIP(censor_ip) << " DIsconnected : Recevied from client '-1'" << std::endl;
 
 	for (auto iter = clients.begin(); iter != clients.end(); iter++) {
 		if ((**iter) == client) {
@@ -340,6 +356,25 @@ void CommandFun() {
 					printTime(); textcolor(GREEN, BLACK); std::cout << "[" << index++ << "]" << " IP : " << iter->getIP(censor_ip) << std::endl;
 				}
 			}
+			else if (tmp == "room") {
+				if (megs.size() > 0) {
+					tmp = megs.front();
+					megs.pop();
+
+					if (tmp == "list") {
+						int index = 0;
+						for (auto iter : rooms) {
+							printTime(); textcolor(GREEN, BLACK); std::cout << "[" << index++ << "]" << " Room_id : " << iter->getRoomId() << " Player_count : " << iter->playerCount() << " Is_private : " << iter->getPrivate() << std::endl;
+						}
+					}
+					else {
+						printTime(); textcolor(RED, BLACK); std::cout << "Can not find command : room >>" << tmp << "<< here" << std::endl;
+					}
+				}
+				else {
+					printTime(); textcolor(RED, BLACK); std::cout << "Can not find room command" << std::endl;
+				}
+			}
 			else if (tmp == "kick") {
 				if (megs.size() > 0) {
 					tmp = megs.front();
@@ -387,7 +422,6 @@ void CommandFun() {
 			else {
 				printTime(); textcolor(RED, BLACK); std::cout << "Can not find function : >>" << tmp << "<< here" << std::endl;
 			}
-
 		}
 		else {
 			printTime(); textcolor(RED, BLACK); std::cout << "Can not find command" << std::endl;
@@ -395,24 +429,33 @@ void CommandFun() {
 	}
 }
 
+void MakeRoom(Client* client) {
+	rooms.push_back(new Room(client));
+	rooms[rooms.size() - 1]->joinRoom(client);
+	printTime(); textcolor(GREEN, BLACK); std::cout << "Created new Room and joined" << std::endl;
+}
+
 void Match(Client* client) {
 	if (rooms.size() == 0) {
 		rooms.push_back(new Room(client));
 		rooms[0]->joinRoom(client);
+		printTime(); textcolor(GREEN, BLACK); std::cout << "Created new Room and joined" << std::endl;
 	}
 	else {
 		bool joined = false;
 
 		for (auto iter : rooms) {
-			if (!iter->full()) { //full 아직 정의 안됨
+			if (!iter->full()) {
 				iter->joinRoom(client);
 				joined = true;
+				printTime(); textcolor(GREEN, BLACK); std::cout << "Joined room id : " << iter->getRoomId() << std::endl;
 			}
 		}
 
 		if (!joined) {
 			rooms.push_back(new Room(client));
 			rooms[rooms.size() - 1]->joinRoom(client);
+			printTime(); textcolor(GREEN, BLACK); std::cout << "Created new Room" << std::endl;
 		}
 	}
 }
@@ -420,7 +463,7 @@ void Match(Client* client) {
 void Match(int room_id, Client* client) {
 	for (auto iter : rooms) {
 		if (iter->getRoomId() == room_id && !iter->full()) {
-			iter->joinRoom(client);
+			iter->joinRoom(client);	
 		}
 		else if (iter->getRoomId() == room_id && iter->full()) {
 			//방이 꽉참
