@@ -9,12 +9,11 @@ private:
 	std::vector<Client*> players;
 public:
 	Room(Client*);
-	Room(int, Client*);
 	
 	void joinRoom(Client*);
-	void exitRoom(Client*);
+	void exitRoom(Client*, std::vector<Client*>*);
 	void StartGame();
 	
 	bool full();
+	int getRoomId();
 };
-

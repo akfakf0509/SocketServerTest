@@ -8,6 +8,7 @@
 #include <thread>
 #include <WinSock2.h>
 #include "Client.h"
+#include "Room.h"
 
 #pragma comment(lib, "ws2_32")
 
@@ -36,9 +37,12 @@ void RecvThread(Client*);
 int RecvFun(SOCKET, char*, int, int);
 void CommandFun();
 void textcolor(int, int);
+void Match(Client*);
+void Match(int, Client*);
 
-std::vector<Client*> hClient;
+std::vector<Client*> clients;
 std::vector<std::thread*> threads;
+std::vector<Room*> rooms;
 
 SOCKET hListen;
 
@@ -67,9 +71,10 @@ int main() {
 
 	while (wait_client) {
 		SOCKET sock = accept(hListen, (SOCKADDR*)&tClntAddr, &iClntSize);
-		Client* client = new Client((void*)sock, inet_ntoa(tClntAddr.sin_addr));
 
-		hClient.push_back(client);
+		Client* client = new Client((void*)sock, inet_ntoa(tClntAddr.sin_addr), STATUS::WAIT);
+
+		clients.push_back(client);
 
 		printTime(); textcolor(GREEN, BLACK); std::cout << "IP : " << client->getIP(censor_ip) << " Connected" << std::endl;
 
@@ -114,22 +119,95 @@ void __cdecl RecvThread(Client* client_)
 		//------------------------------------------------
 		buf[recvsize] = '\0';
 		printTime(); textcolor(WHITE, BLACK); std::cout << client.getIP(censor_ip) << " : " << buf << std::endl;
-		//----------클라이언트에게 전송------------------
-		for (auto iter : hClient)
-		{
-			if (iter->getSocket() != client.getSocket())
-			{
-				int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 보내고
-				sendsize = send(iter->getSocket(), buf, (int)strlen(buf), 0);					// 그 사이즈만큼 데이터 보냄..
+
+		std::queue<std::string> megs;
+		std::string tmp;
+
+		for (auto iter : std::string(buf)) {
+			if (iter == ' ') {
+				megs.push(tmp);
+				tmp.clear();
+			}
+			else {
+				tmp.push_back(iter);
 			}
 		}
-		//-----------------------------------------------
+		megs.push(tmp);
+		tmp.clear();
+
+		if (megs.size() > 0) {
+			tmp = megs.front();
+			megs.pop();
+
+			if (tmp == "TO_SERVER") {
+				if (megs.size() > 0) {
+					tmp = megs.front();
+					megs.pop();
+
+					if (tmp == "JOIN") {
+						if (megs.size() > 0) {
+							tmp = megs.front();
+							megs.pop();
+
+							if (tmp == "AUTO") {
+								client.setStatus(STATUS::MATCH);
+								printTime(); textcolor(GREEN, BLACK); std::cout << "Match auto" << std::endl;
+								//connect room in auto
+							}
+							else if (tmp == "ROOM_ID") {
+								if (megs.size() > 0) {
+									tmp = megs.front();
+									megs.pop();
+
+									client.setStatus(STATUS::MATCH);
+									//coonect room in room_id
+								}
+								else {
+									printTime(); textcolor(RED, BLACK); std::cout << "Can not find room_id" << std::endl;
+								}
+							}
+							else {
+								printTime(); textcolor(RED, BLACK); std::cout << "Can not find command : TO_SERVER JOIN >>" << tmp << "<< here" << std::endl;
+							}
+						}
+						else {
+							printTime(); textcolor(RED, BLACK); std::cout << "Need more command" << std::endl;
+						}
+					}
+					else {
+						printTime(); textcolor(RED, BLACK); std::cout << "Can not find command : TO_SERVER >>" << tmp << "<< here" << std::endl;
+					}
+				}
+				else {
+					printTime(); textcolor(RED, BLACK); std::cout << "Need more command" << std::endl;
+				}
+			}
+			else if (tmp == "TO_CLIENTS") {
+				//----------클라이언트에게 전송------------------
+				for (auto iter : clients)
+				{
+					if (iter->getSocket() != client.getSocket())
+					{
+						int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 보내고
+						sendsize = send(iter->getSocket(), buf, (int)strlen(buf), 0);					// 그 사이즈만큼 데이터 보냄..
+					}
+				}
+				//-----------------------------------------------
+			}
+			else {
+				printTime(); textcolor(RED, BLACK); std::cout << "Can not find command >>" << tmp << "<< here" << std::endl;
+			}
+		}
+		else {
+			printTime(); textcolor(RED, BLACK); std::cout << "Can not find command" << std::endl;
+		}
 	}
+
 	printTime(); textcolor(GREEN, BLACK); std::cout << "IP : " << client.getIP(censor_ip) << " DIsconnected" << std::endl;
 
-	for (auto iter = hClient.begin(); iter != hClient.end(); iter++) {
+	for (auto iter = clients.begin(); iter != clients.end(); iter++) {
 		if ((**iter) == client) {
-			hClient.erase(iter);
+			clients.erase(iter);
 			break;
 		}
 	}
@@ -195,30 +273,32 @@ void CommandFun() {
 						if (megs.size() > 0) {
 							tmp = megs.front();
 							megs.pop();
+						
 							if (tmp == "true" || tmp == "1") {
 								censor_ip = true;
 							}
 							else if (tmp == "false" || tmp == "0") {
 								censor_ip = false;
 							}
-							printTime(); textcolor(GREEN, BLACK); std::cout << "now do_censor is " << censor_ip << std::endl;
+
+							printTime(); textcolor(GREEN, BLACK); std::cout << "Setting do_censor is " << censor_ip << std::endl;
 						}
 						else {
-							printTime(); textcolor(RED, BLACK); std::cout << "Can not find value" << std::endl;
+							printTime(); textcolor(RED, BLACK); std::cout << "Cant not find value" << std::endl;
 						}
 					}
 					else {
-						printTime(); textcolor(RED, BLACK); std::cout << "Can not find setting name" << std::endl;
+						printTime(); textcolor(RED, BLACK); std::cout << "Cant not find setting name : set do_censor >>" << tmp << "<< here" << std::endl;
 					}
 				}
 				else {
-					printTime(); textcolor(RED, BLACK); std::cout << "Can not find setting name" << std::endl;
+					printTime(); textcolor(RED, BLACK); std::cout << "Cant not find setting name" << std::endl;
 				}
 			}
 			else if (tmp == "stop") {
 				printTime(); textcolor(GREEN, BLACK); std::cout << "stopping.." << std::endl;
 
-				for (auto iter : hClient) {
+				for (auto iter : clients) {
 					shutdown(iter->getSocket(), SD_BOTH);
 					closesocket(iter->getSocket());
 
@@ -240,7 +320,7 @@ void CommandFun() {
 						tmp += " " + megs.front();
 					}
 
-					for (auto iter : hClient)
+					for (auto iter : clients)
 					{
 						int size = (int)tmp.size();
 						int sendsize = send(iter->getSocket(), (char*)&size, sizeof(int), 0);		// 사이즈를 먼저 보내고
@@ -252,11 +332,11 @@ void CommandFun() {
 				}
 			}
 			else if (tmp == "list") {
-				if (hClient.empty()) {
+				if (clients.empty()) {
 					printTime(); textcolor(GREEN, BLACK); std::cout << "No clients" << std::endl;
 				}
 				int index = 0;
-				for (auto iter : hClient) {
+				for (auto iter : clients) {
 					printTime(); textcolor(GREEN, BLACK); std::cout << "[" << index++ << "]" << " IP : " << iter->getIP(censor_ip) << std::endl;
 				}
 			}
@@ -272,32 +352,32 @@ void CommandFun() {
 
 					if (is_ip) {
 						bool kicked = false;
-						for (auto iter = hClient.begin(); iter != hClient.end(); iter++) {
+						for (auto iter = clients.begin(); iter != clients.end(); iter++) {
 							if ((*iter)->getIP() == tmp) {
 								closesocket((*iter)->getSocket());
 
 								delete (*iter);
 
-								hClient.erase(iter);
+								clients.erase(iter);
 
 								kicked = true;
 								break;
 							}
 						}
 						if(!kicked)
-							printTime(); textcolor(RED, BLACK); std::cout << "Can not find target" << std::endl;
+							printTime(); textcolor(RED, BLACK); std::cout << "Can not find target : kick >>" << tmp << "<< here" << std::endl;
 					}
-					else if(0 <= std::stol(tmp) && std::stoi(tmp) < (int)hClient.size()){
+					else if(0 <= std::stol(tmp) && std::stoi(tmp) < (int)clients.size()){
 						int index = std::stoi(tmp);
 						
-						closesocket(hClient[index]->getSocket());
+						closesocket(clients[index]->getSocket());
 
-						delete (hClient[index]);
+						delete (clients[index]);
 
-						hClient.erase(hClient.begin() + index);
+						clients.erase(clients.begin() + index);
 					}
 					else {
-						printTime(); textcolor(RED, BLACK); std::cout << "Can not find target" << std::endl;
+						printTime(); textcolor(RED, BLACK); std::cout << "Can not find target : kick >>" << tmp << "<< here" << std::endl;
 					}
 				}
 				else {
@@ -305,12 +385,48 @@ void CommandFun() {
 				}
 			}
 			else {
-				printTime(); textcolor(RED, BLACK); std::cout << "Can not find function" << std::endl;
+				printTime(); textcolor(RED, BLACK); std::cout << "Can not find function : >>" << tmp << "<< here" << std::endl;
 			}
 
 		}
 		else {
 			printTime(); textcolor(RED, BLACK); std::cout << "Can not find command" << std::endl;
+		}
+	}
+}
+
+void Match(Client* client) {
+	if (rooms.size() == 0) {
+		rooms.push_back(new Room(client));
+		rooms[0]->joinRoom(client);
+	}
+	else {
+		bool joined = false;
+
+		for (auto iter : rooms) {
+			if (!iter->full()) { //full 아직 정의 안됨
+				iter->joinRoom(client);
+				joined = true;
+			}
+		}
+
+		if (!joined) {
+			rooms.push_back(new Room(client));
+			rooms[rooms.size() - 1]->joinRoom(client);
+		}
+	}
+}
+
+void Match(int room_id, Client* client) {
+	for (auto iter : rooms) {
+		if (iter->getRoomId() == room_id && !iter->full()) {
+			iter->joinRoom(client);
+		}
+		else if (iter->getRoomId() == room_id && iter->full()) {
+			//방이 꽉참
+		}
+		else {
+			//방을 찾을 수 없음
 		}
 	}
 }

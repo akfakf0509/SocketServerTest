@@ -10,6 +10,7 @@ class Client
 private:
 	SOCKET socket;
 	std::string ip;
+	int client_id;
 	STATUS status;
 public:
 	Client(void*, std::string, STATUS);
@@ -22,8 +23,8 @@ public:
 	SOCKET getSocket();
 	std::string getIP();
 	std::string getIP(bool);
+	int getClientId();
 	STATUS getStatus();
 
 	bool operator==(Client);
 };
-

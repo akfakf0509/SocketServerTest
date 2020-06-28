@@ -1,6 +1,8 @@
 #include "Client.h"
 
 Client::Client(void* socket, std::string ip, STATUS status) : socket((SOCKET)socket), ip(ip), status(status) {
+	static int current_id;
+	client_id = current_id++;
 }
 
 Client::~Client() {
@@ -46,10 +48,14 @@ std::string Client::getIP(bool do_censor) {
 	return new_ip;
 }
 
+int Client::getClientId() {
+	return client_id;
+}
+
 STATUS Client::getStatus() {
 	return status;
 }
 
 bool Client::operator==(Client client) {
-	return this->getSocket() == client.getSocket();
+	return this->getClientId() == client.getClientId();
 }
