@@ -15,6 +15,11 @@ void Room::joinRoom(Client* client) {
 		client->getRoom()->exitRoom(client);
 	client->setRoom(this);
 	players.push_back(client);
+
+	char tmp_buf[256];
+	sprintf(tmp_buf, "TO_CLIENT ROOM UPDATE %d", playerCount());
+	std::string buf(tmp_buf);
+	sendCommand(buf, client);
 }
 
 void Room::exitRoom(Client* client) {
@@ -24,14 +29,36 @@ void Room::exitRoom(Client* client) {
 			players.erase(iter);
 		}
 	}
+
+	char tmp_buf[256];
+	sprintf(tmp_buf, "TO_CLIENT ROOM UPDATE %d", playerCount());
+	std::string buf(tmp_buf);
+	sendCommand(buf, client);
 }
 
 void Room::StartGame() {
-
+	for (auto iter : players) {
+		iter->setStatus(STATUS::PLAY);
+	}
 }
 
 void Room::setPrivate(bool is_private) {
 	this->is_private = is_private;
+}
+
+void Room::sendCommand(std::string buf, Client* sender) {
+	for (auto iter : players)
+	{
+		if (iter->getSocket() != sender->getSocket())
+		{
+			unsigned char size_buf[256] = "";
+			sprintf((char*)size_buf, "%d$", buf.size());
+			int sendsize = send(iter->getSocket(), (char*)size_buf, strlen((char*)size_buf), 0);
+			unsigned char tmp[256] = "";
+			strcpy((char*)tmp, buf.c_str());
+			sendsize = send(iter->getSocket(), (char*)tmp, strlen((char*)tmp), 0);
+		}
+	}
 }
 
 bool Room::full() {

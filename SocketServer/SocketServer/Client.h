@@ -6,6 +6,8 @@
 
 enum class STATUS { WAIT, MATCH, PLAY };
 
+class Room;
+
 class Client
 {
 private:

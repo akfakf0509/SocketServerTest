@@ -1,6 +1,10 @@
+#define _CRT_SECURE_NO_WARNINGS
 #pragma once
 #include <vector>
 #include "Client.h"
+
+class Client;
+
 class Room
 {
 private:
@@ -17,6 +21,7 @@ public:
 	void exitRoom(Client*);
 	void StartGame();
 	void setPrivate(bool);
+	void sendCommand(std::string, Client*);
 	
 	bool full();
 	bool getPrivate();

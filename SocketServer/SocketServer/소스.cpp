@@ -41,6 +41,7 @@ void MakeRoom(Client*);
 void MakeRoom(Client*, bool);
 void Match(Client*);
 void Match(int, Client*);
+void SendCommand(std::string, Client*);
 
 std::vector<Client*> clients;
 std::vector<std::thread*> threads;
@@ -119,7 +120,6 @@ void __cdecl RecvThread(Client* client_)
 			int recvsize = recv(client.getSocket(), (char*)recv_buf, 1, 0);
 			if (recv_buf[0] == '$' || recvsize <= 0)
 				break;
-			std::cout << std::string((char*)recv_buf) << std::endl;
 			size = size * 10 + std::stoi(std::string((char*)recv_buf));
 		}
 		int recvsize = RecvFun(client.getSocket(), (char*)recv_buf, size, 0);
@@ -154,7 +154,7 @@ void __cdecl RecvThread(Client* client_)
 				if (megs.size() > 0) {
 					tmp = megs.front();
 					megs.pop();
-					
+
 					if (tmp == "ROOM") {
 						if (megs.size() > 0) {
 							tmp = megs.front();
@@ -209,12 +209,30 @@ void __cdecl RecvThread(Client* client_)
 									printTime(); textcolor(RED, BLACK); std::cout << "Need more command" << std::endl;
 								}
 							}
-							else if (tmp == "EXIT") {
+							else if (tmp == "LEAVE") {
 								client.getRoom()->exitRoom(&client);
+							}
+							else if (tmp == "START") {
+								client.getRoom()->StartGame();
 							}
 							else {
 								printTime(); textcolor(RED, BLACK); std::cout << "Can not find command : TO_SERVER ROOM >>" << tmp << "<< here" << std::endl;
 							}
+						}
+						else {
+							printTime(); textcolor(RED, BLACK); std::cout << "Need more command" << std::endl;
+						}
+					}
+					else if (tmp == "GAME" && client.getStatus() == STATUS::PLAY) {
+						if (megs.size() > 0) {
+							std::string buf = "TO_CLIENT GAME";
+
+							while (megs.size() > 1) {
+								buf += " " + tmp;
+								megs.pop();
+							}
+
+							client.getRoom()->sendCommand(buf, &client);
 						}
 						else {
 							printTime(); textcolor(RED, BLACK); std::cout << "Need more command" << std::endl;
@@ -227,22 +245,6 @@ void __cdecl RecvThread(Client* client_)
 				else {
 					printTime(); textcolor(RED, BLACK); std::cout << "Need more command" << std::endl;
 				}
-			}
-			else if (tmp == "TO_CLIENTS") {
-				//----------클라이언트에게 전송------------------
-				for (auto iter : clients)
-				{
-					if (iter->getSocket() != client.getSocket())
-					{
-						unsigned char size_buf[256] = "";
-						sprintf((char*)size_buf, "%d$", buf.size());
-						int sendsize = send(iter->getSocket(), (char*)size_buf, strlen((char*)size_buf), 0);
-						unsigned char tmp[256] = "";
-						strcpy((char*)tmp, buf.c_str());
-						sendsize = send(iter->getSocket(), (char*)tmp, strlen((char*)tmp), 0);
-					}
-				}
-				//-----------------------------------------------
 			}
 			else {
 				printTime(); textcolor(RED, BLACK); std::cout << "Can not find command >>" << tmp << "<< here" << std::endl;
@@ -316,7 +318,7 @@ void CommandFun() {
 		if (megs.size() > 0) {
 			tmp = megs.front();
 			megs.pop();
-			if (tmp == "set"){
+			if (tmp == "set") {
 				if (megs.size() > 0) {
 					tmp = megs.front();
 					megs.pop();
@@ -324,7 +326,7 @@ void CommandFun() {
 						if (megs.size() > 0) {
 							tmp = megs.front();
 							megs.pop();
-						
+
 							if (tmp == "true" || tmp == "1") {
 								censor_ip = true;
 							}
@@ -437,12 +439,12 @@ void CommandFun() {
 								break;
 							}
 						}
-						if(!kicked)
+						if (!kicked)
 							printTime(); textcolor(RED, BLACK); std::cout << "Can not find target : kick >>" << tmp << "<< here" << std::endl;
 					}
-					else if(0 <= std::stol(tmp) && std::stoi(tmp) < (int)clients.size()){
+					else if (0 <= std::stol(tmp) && std::stoi(tmp) < (int)clients.size()) {
 						int index = std::stoi(tmp);
-						
+
 						closesocket(clients[index]->getSocket());
 
 						delete (clients[index]);
@@ -470,20 +472,27 @@ void CommandFun() {
 void MakeRoom(Client* client) {
 	rooms.push_back(new Room);
 	rooms[rooms.size() - 1]->joinRoom(client);
-	printTime(); textcolor(GREEN, BLACK); std::cout << "Created new Room and joined" << std::endl;
+	char tmp_buf[256];
+	sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d FALSE", rooms[rooms.size() - 1]->playerCount());
+	SendCommand(std::string(tmp_buf), client);
 }
 
 void MakeRoom(Client* client, bool is_private) {
 	rooms.push_back(new Room(is_private));
 	rooms[rooms.size() - 1]->joinRoom(client);
-	printTime(); textcolor(GREEN, BLACK); std::cout << "Created new Room and joined" << std::endl;
+	char tmp_buf[256];
+	if (is_private)
+		sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d TRUE", rooms[rooms.size() - 1]->playerCount());
+	else
+		sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d FALSE", rooms[rooms.size() - 1]->playerCount());
+	SendCommand(std::string(tmp_buf), client);
 }
 
 void Match(Client* client) {
 	if (rooms.size() == 0) {
 		rooms.push_back(new Room);
 		rooms[0]->joinRoom(client);
-		printTime(); textcolor(GREEN, BLACK); std::cout << "Created new Room and joined" << std::endl;
+		SendCommand("TO_CLIENT ROOM CONNECT", client);
 	}
 	else {
 		bool joined = false;
@@ -492,28 +501,40 @@ void Match(Client* client) {
 			if (!iter->full() && !iter->getPrivate()) {
 				iter->joinRoom(client);
 				joined = true;
-				printTime(); textcolor(GREEN, BLACK); std::cout << "Joined room id : " << iter->getRoomId() << std::endl;
+				SendCommand("TO_CLIENT ROOM CONNECT", client);
 			}
 		}
 
 		if (!joined) {
 			rooms.push_back(new Room);
 			rooms[rooms.size() - 1]->joinRoom(client);
-			printTime(); textcolor(GREEN, BLACK); std::cout << "Created new Room" << std::endl;
+			SendCommand("TO_CLIENT ROOM CONNECT", client);
 		}
 	}
 }
 
 void Match(int room_id, Client* client) {
+	bool noroom = true;
 	for (auto iter : rooms) {
 		if (iter->getRoomId() == room_id && !iter->full()) {
-			iter->joinRoom(client);	
+			noroom = false;
+			iter->joinRoom(client);
 		}
 		else if (iter->getRoomId() == room_id && iter->full()) {
-			//방이 꽉참
-		}
-		else {
-			//방을 찾을 수 없음
+			noroom = false;
+			SendCommand("TO_CLIENT ROOM FULL", client);
 		}
 	}
+	if (noroom) {
+		SendCommand("TO_CLIENT ROOM NOROOM", client);
+	}
+}
+
+void SendCommand(std::string buf, Client* client) {
+	unsigned char size_buf[256] = "";
+	sprintf((char*)size_buf, "%d$", buf.size());
+	int sendsize = send(client->getSocket(), (char*)size_buf, strlen((char*)size_buf), 0);
+	unsigned char tmp[256] = "";
+	strcpy((char*)tmp, buf.c_str());
+	sendsize = send(client->getSocket(), (char*)tmp, strlen((char*)tmp), 0);
 }
