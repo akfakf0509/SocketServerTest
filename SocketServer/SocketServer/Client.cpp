@@ -1,9 +1,8 @@
 #include "Client.h"
 
-int Client::current_id = 0;
-
-Client::Client(void* socket, std::string ip, STATUS status) : socket((SOCKET)socket), ip(ip), room(nullptr), status(status) {
-	client_id = Client::current_id++;
+Client::Client(void* socket, std::string ip, STATUS status) : socket((SOCKET)socket), ip(ip), status(status) {
+	static int current_id;
+	client_id = current_id++;
 }
 
 Client::~Client() {
@@ -16,10 +15,6 @@ void Client::setSocket(void* socket_) {
 
 void Client::setIP(std::string ip_) {
 	ip = ip_;
-}
-
-void Client::setRoom(Room* room) {
-	this->room = room;
 }
 
 void Client::setStatus(STATUS status_) {
@@ -55,10 +50,6 @@ std::string Client::getIP(bool do_censor) {
 
 int Client::getClientId() {
 	return client_id;
-}
-
-Room* Client::getRoom() {
-	return room;
 }
 
 STATUS Client::getStatus() {

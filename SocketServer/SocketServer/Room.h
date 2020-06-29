@@ -5,16 +5,15 @@ class Room
 {
 private:
 	int room_id;
-	static int current_id;
+	Client* owner;
 	bool is_private;
 	std::vector<Client*> players;
 	int max_player;
 public:
-	Room();
-	Room(bool);
+	Room(Client*);
 	
 	void joinRoom(Client*);
-	void exitRoom(Client*);
+	void exitRoom(Client*, std::vector<Client*>*);
 	void StartGame();
 	void setPrivate(bool);
 	
