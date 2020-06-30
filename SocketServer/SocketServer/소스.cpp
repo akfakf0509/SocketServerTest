@@ -166,7 +166,6 @@ void __cdecl RecvThread(Client* client_)
 									megs.pop();
 
 									if (tmp == "AUTO") {
-										client.setStatus(STATUS::MATCH);
 										printTime(); textcolor(GREEN, BLACK); std::cout << "Match auto" << std::endl;
 										Match(&client);
 									}
@@ -175,7 +174,6 @@ void __cdecl RecvThread(Client* client_)
 											tmp = megs.front();
 											megs.pop();
 
-											client.setStatus(STATUS::MATCH);
 											Match(std::stoi(tmp), &client);
 										}
 										else {
@@ -188,16 +186,13 @@ void __cdecl RecvThread(Client* client_)
 											megs.pop();
 
 											if (tmp == "TRUE") {
-												client.setStatus(STATUS::MATCH);
 												MakeRoom(&client, true);
 											}
 											else {
-												client.setStatus(STATUS::MATCH);
 												MakeRoom(&client, false);
 											}
 										}
 										else {
-											client.setStatus(STATUS::MATCH);
 											MakeRoom(&client);
 										}
 									}
@@ -214,6 +209,9 @@ void __cdecl RecvThread(Client* client_)
 							}
 							else if (tmp == "START") {
 								client.getRoom()->StartGame();
+							}
+							else if (tmp == "FINISH") {
+								client.getRoom()->FinishGame();
 							}
 							else {
 								printTime(); textcolor(RED, BLACK); std::cout << "Can not find command : TO_SERVER ROOM >>" << tmp << "<< here" << std::endl;
@@ -265,7 +263,8 @@ void __cdecl RecvThread(Client* client_)
 	}
 
 	//------------소켓 해제---------------------
-	client.getRoom()->exitRoom(&client);
+	if(client.getRoom() != nullptr)
+		client.getRoom()->exitRoom(&client);
 	closesocket(client.getSocket());
 	//----------------------------------------
 }
@@ -376,11 +375,11 @@ void CommandFun() {
 					for (auto iter : clients)
 					{
 						unsigned char size_buf[256] = "";
-						sprintf((char*)size_buf, "%d$", tmp.size());
-						int sendsize = send(iter->getSocket(), (char*)size_buf, strlen((char*)size_buf), 0);
+						sprintf((char*)size_buf, "%d$", (int)tmp.size());
+						int sendsize = send(iter->getSocket(), (char*)size_buf, (int)strlen((char*)size_buf), 0);
 						unsigned char buf[256] = "";
 						strcpy((char*)buf, tmp.c_str());
-						sendsize = send(iter->getSocket(), (char*)buf, strlen((char*)buf), 0);
+						sendsize = send(iter->getSocket(), (char*)buf, (int)strlen((char*)buf), 0);
 					}
 				}
 				else {
@@ -402,9 +401,12 @@ void CommandFun() {
 					megs.pop();
 
 					if (tmp == "list") {
+						if (rooms.empty()) {
+							printTime(); textcolor(GREEN, BLACK); std::cout << "No rooms" << std::endl;
+						}
 						int index = 0;
 						for (auto iter : rooms) {
-							printTime(); textcolor(GREEN, BLACK); std::cout << "[" << index++ << "]" << " Room_id : " << iter->getRoomId() << " Player_count : " << iter->playerCount() << " Is_private : " << iter->getPrivate() << std::endl;
+							printTime(); textcolor(GREEN, BLACK); std::cout << "[" << index++ << "]" << " Room_id : " << iter->getRoomId() << " Player_count : " << iter->playerCount() << " Is_private : " << iter->getPrivate() << " Status : " << (char)iter->getStatus() << std::endl;
 						}
 					}
 					else {
@@ -473,7 +475,7 @@ void MakeRoom(Client* client) {
 	rooms.push_back(new Room);
 	rooms[rooms.size() - 1]->joinRoom(client);
 	char tmp_buf[256];
-	sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d FALSE", rooms[rooms.size() - 1]->playerCount());
+	sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d %d FALSE", rooms[rooms.size() - 1]->getRoomId(), rooms[rooms.size() - 1]->playerCount());
 	SendCommand(std::string(tmp_buf), client);
 }
 
@@ -482,9 +484,9 @@ void MakeRoom(Client* client, bool is_private) {
 	rooms[rooms.size() - 1]->joinRoom(client);
 	char tmp_buf[256];
 	if (is_private)
-		sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d TRUE", rooms[rooms.size() - 1]->playerCount());
+		sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d %d TRUE", rooms[rooms.size() - 1]->getRoomId(), rooms[rooms.size() - 1]->playerCount());
 	else
-		sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d FALSE", rooms[rooms.size() - 1]->playerCount());
+		sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d %d FALSE", rooms[rooms.size() - 1]->getRoomId(), rooms[rooms.size() - 1]->playerCount());
 	SendCommand(std::string(tmp_buf), client);
 }
 
@@ -492,37 +494,53 @@ void Match(Client* client) {
 	if (rooms.size() == 0) {
 		rooms.push_back(new Room);
 		rooms[0]->joinRoom(client);
-		SendCommand("TO_CLIENT ROOM CONNECT", client);
+		char tmp_buf[256];
+		sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d %d %s", rooms[rooms.size() - 1]->getRoomId(), rooms[rooms.size() - 1]->playerCount(), rooms[rooms.size() - 1]->getPrivate() ? "TRUE" : "FALSE");
+		SendCommand(std::string(tmp_buf), client);
 	}
 	else {
 		bool joined = false;
 
+		int index = 0;
 		for (auto iter : rooms) {
 			if (!iter->full() && !iter->getPrivate()) {
 				iter->joinRoom(client);
 				joined = true;
-				SendCommand("TO_CLIENT ROOM CONNECT", client);
+				char tmp_buf[256];
+				sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d %d %s", rooms[index]->getRoomId(), rooms[index]->playerCount(), rooms[index]->getPrivate() ? "TRUE" : "FALSE");
+				SendCommand(std::string(tmp_buf), client);
+				index++;
 			}
 		}
 
 		if (!joined) {
 			rooms.push_back(new Room);
 			rooms[rooms.size() - 1]->joinRoom(client);
-			SendCommand("TO_CLIENT ROOM CONNECT", client);
+			char tmp_buf[256];
+			sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d %d %s", rooms[rooms.size() - 1]->getRoomId(), rooms[rooms.size() - 1]->playerCount(), rooms[rooms.size() - 1]->getPrivate() ? "TRUE" : "FALSE");
+			SendCommand(std::string(tmp_buf), client);
 		}
 	}
 }
 
 void Match(int room_id, Client* client) {
 	bool noroom = true;
+
+	int index = 0;
 	for (auto iter : rooms) {
 		if (iter->getRoomId() == room_id && !iter->full()) {
 			noroom = false;
 			iter->joinRoom(client);
+			char tmp_buf[256];
+			sprintf(tmp_buf, "TO_CLIENT ROOM CONNECT %d %d %s", rooms[index]->getRoomId(), rooms[index]->playerCount(), rooms[index]->getPrivate() ? "TRUE" : "FALSE");
+			SendCommand(std::string(tmp_buf), client);
+			index++;
+			break;
 		}
 		else if (iter->getRoomId() == room_id && iter->full()) {
 			noroom = false;
 			SendCommand("TO_CLIENT ROOM FULL", client);
+			break;
 		}
 	}
 	if (noroom) {
@@ -532,9 +550,9 @@ void Match(int room_id, Client* client) {
 
 void SendCommand(std::string buf, Client* client) {
 	unsigned char size_buf[256] = "";
-	sprintf((char*)size_buf, "%d$", buf.size());
-	int sendsize = send(client->getSocket(), (char*)size_buf, strlen((char*)size_buf), 0);
+	sprintf((char*)size_buf, "%d$", (int)buf.size());
+	int sendsize = send(client->getSocket(), (char*)size_buf, (int)strlen((char*)size_buf), 0);
 	unsigned char tmp[256] = "";
 	strcpy((char*)tmp, buf.c_str());
-	sendsize = send(client->getSocket(), (char*)tmp, strlen((char*)tmp), 0);
+	sendsize = send(client->getSocket(), (char*)tmp, (int)strlen((char*)tmp), 0);
 }
